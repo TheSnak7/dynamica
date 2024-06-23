@@ -1,8 +1,8 @@
 const std = @import("std");
 
 fn CreateVTable(interface: type) type {
-    const typeInfo = @typeInfo(interface);
-    const decls = typeInfo.Struct.decls;
+    const decls = std.meta.declarations(interface);
+
     //Two extra fields: One for the runtimeTypeInfo and one for the deinit function
     var fields: [2 + decls.len]std.builtin.Type.StructField = undefined;
 
@@ -43,8 +43,7 @@ fn CreateVTable(interface: type) type {
 }
 
 fn LinkVTable(implementation: type, vTableType: type) vTableType {
-    const vTypeInfo = @typeInfo(vTableType);
-    const fields = vTypeInfo.Struct.fields;
+    const fields = std.meta.fields(vTableType);
 
     var implVtable: vTableType = undefined;
 
@@ -55,13 +54,14 @@ fn LinkVTable(implementation: type, vTableType: type) vTableType {
         } else if (std.mem.eql(u8, field.name, "vDeinit")) {
             @field(implVtable, "vDeinit") = &emptyDeinit;
         } else {
+            //TODO: Verfiy function signatures, safety lost because of the casts
             @field(implVtable, field.name) = @alignCast(@ptrCast(@constCast(&@field(implementation, field.name))));
         }
     }
     return implVtable;
 }
 
-fn CreateDynRef(value: anytype, interface: type, vTable: anytype) Dyn(interface) {
+fn CreateDynObject(value: anytype, interface: type, vTable: anytype) Dyn(interface) {
     return .{ .this = @ptrCast(@constCast(value)), .v = vTable };
 }
 
@@ -75,10 +75,10 @@ pub fn Dyn(interface: type) type {
         pub fn init(value: anytype) @This() {
             const underlyingType = std.meta.Child(@TypeOf(value));
 
-            const globalWrapper = struct {
+            const globaVTableContainer = struct {
                 pub const vTableImpl = LinkVTable(underlyingType, vTableType);
             };
-            return CreateDynRef(value, interface, &globalWrapper.vTableImpl);
+            return CreateDynObject(value, interface, &globaVTableContainer.vTableImpl);
         }
     };
 }
@@ -86,7 +86,6 @@ pub fn Dyn(interface: type) type {
 pub fn implementWith(argumentTuple: anytype) noreturn {
     _ = argumentTuple;
     std.debug.panic("Virtual interace method panicked. Has to be implemented and not called directly", .{});
-    unreachable;
 }
 
 fn emptyDeinit(this: *anyopaque, allocator: std.mem.Allocator) void {
