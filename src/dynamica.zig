@@ -42,7 +42,7 @@ fn CreateVTable(interface: type) type {
     });
 }
 
-fn LinkVTable(implementation: type, vTableType: type) vTableType {
+fn LinkVTable(implementation: type, vTableType: type, interface: type) vTableType {
     const fields = std.meta.fields(vTableType);
 
     var implVtable: vTableType = undefined;
@@ -54,11 +54,40 @@ fn LinkVTable(implementation: type, vTableType: type) vTableType {
         } else if (std.mem.eql(u8, field.name, "vDeinit")) {
             @field(implVtable, "vDeinit") = &emptyDeinit;
         } else {
-            //TODO: Verfiy function signatures, safety lost because of the casts
-            @field(implVtable, field.name) = @alignCast(@ptrCast(@constCast(&@field(implementation, field.name))));
+            //Verfiy function signatures, safety lost because of the casts
+            _ = isFunctionSignatureValid(
+                @TypeOf(@field(implVtable, field.name)),
+                @TypeOf(@field(implementation, field.name)),
+                interface,
+                implementation,
+            );
+            @field(implVtable, field.name) = @ptrCast(@alignCast(@constCast(&@field(implementation, field.name))));
         }
     }
     return implVtable;
+}
+
+fn isFunctionSignatureValid(vTableFnPtr: type, implFnObject: type, interface: type, implementaion: type) bool {
+    const vTableFnTypeInfo = @typeInfo(std.meta.Child(vTableFnPtr));
+    const paramsVTableFn = vTableFnTypeInfo.Fn.params;
+    const paramsImplFn = @typeInfo(implFnObject).Fn.params;
+
+    //TODO: Verfiy first param
+    for (paramsVTableFn[1..], paramsImplFn[1..]) |paramVTab, paramImpl| {
+        const paramVTableType = paramVTab.type orelse {
+            @compileError("Unknown edge case");
+        };
+        const paramImplType = paramImpl.type orelse {
+            @compileError("Unknown edge case");
+        };
+
+        if (paramVTableType != paramImplType) {
+            @compileError("Function signature mismatch (ignore first param):\n  Found: " ++ @typeName(std.meta.Child(vTableFnPtr)) ++
+                " -------- in interface: " ++ @typeName(interface) ++ "\n" ++
+                "  Found: " ++ @typeName(implFnObject) ++ " -------- in implementaion: " ++ @typeName(implementaion));
+        }
+    }
+    return true;
 }
 
 fn CreateDynObject(value: anytype, interface: type, vTable: anytype) Dyn(interface) {
@@ -76,7 +105,7 @@ pub fn Dyn(interface: type) type {
             const underlyingType = std.meta.Child(@TypeOf(value));
 
             const globaVTableContainer = struct {
-                pub const vTableImpl = LinkVTable(underlyingType, vTableType);
+                pub const vTableImpl = LinkVTable(underlyingType, vTableType, interface);
             };
             return CreateDynObject(value, interface, &globaVTableContainer.vTableImpl);
         }

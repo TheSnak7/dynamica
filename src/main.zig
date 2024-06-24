@@ -1,7 +1,6 @@
 const std = @import("std");
 const dynamica = @import("dynamica.zig");
 const Dyn = dynamica.Dyn;
-const vSelf = dynamica.vSelf;
 const implementWith = dynamica.implementWith;
 
 const Printer = struct {
