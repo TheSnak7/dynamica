@@ -23,7 +23,7 @@ const SumPrinter = struct {
 const MultiplyPrinter = struct {
     val: i32,
     pub fn print(self: *MultiplyPrinter, other: i32) void {
-        std.debug.print("Printing from SumPrinter: {} * {} = {}\n", .{ self.val, other, self.val * other });
+        std.debug.print("Printing from MultiplyPrinter: {} * {} = {}\n", .{ self.val, other, self.val * other });
     }
 };
 
