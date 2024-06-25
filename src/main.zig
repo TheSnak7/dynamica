@@ -1,47 +1,54 @@
 const std = @import("std");
 const dynamica = @import("dynamica.zig");
 const Dyn = dynamica.Dyn;
-const implementWith = dynamica.implementWith;
+const MakeInterface = dynamica.MakeInterface;
 
-const Printer = struct {
-    pub fn print(this: *anyopaque, message: []const u8) void {
-        implementWith(.{ this, message });
+pub fn PrinterInterfaceFn(selfType: type) type {
+    return struct {
+        pub fn print(self: *const selfType, val: i32) void {
+            return self.vTable.print(self.this, val);
+        }
+    };
+}
+pub const Printer = MakeInterface(PrinterInterfaceFn);
+
+const SumPrinter = struct {
+    val: i32,
+    pub fn print(self: *SumPrinter, other: i32) void {
+        std.debug.print("Printing from SumPrinter: {} + {} = {}\n", .{ self.val, other, self.val + other });
     }
 };
 
-const ConsolePrinter = struct {
-    dummy: i32,
-    pub fn print(self: *ConsolePrinter, message: []const u8) void {
-        std.debug.print("Printing with val: {s} and {}\n", .{ message, self.dummy });
-    }
-};
-
-const HelloPrinter = struct {
-    fun: i32,
-    pub fn print(self: *HelloPrinter, message: []const u8) void {
-        std.debug.print("Hello {s} with {} hugs\n", .{ message, self.fun });
+const MultiplyPrinter = struct {
+    val: i32,
+    pub fn print(self: *MultiplyPrinter, other: i32) void {
+        std.debug.print("Printing from SumPrinter: {} * {} = {}\n", .{ self.val, other, self.val * other });
     }
 };
 
 pub fn main() !void {
     var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
-    defer std.debug.assert(general_purpose_allocator.deinit() == .ok);
     const gpa = general_purpose_allocator.allocator();
 
-    const testTPrinter: ConsolePrinter = .{ .dummy = 5 };
-    const dynTPrinter = Dyn(Printer).init(&testTPrinter);
+    const sumPrinter: SumPrinter = .{ .val = 5 };
+    const dynSumPrinter = Dyn(Printer).init(&sumPrinter);
 
-    const testHPrinter: HelloPrinter = .{ .fun = 6 };
-    const dynHPrinter = Dyn(Printer).init(&testHPrinter);
+    const multiplyPrinter: MultiplyPrinter = .{ .val = 6 };
+    const dynMultiplyPrinter = Dyn(Printer).init(&multiplyPrinter);
 
     var printers = std.ArrayList(Dyn(Printer)).init(gpa);
     defer printers.deinit();
-    try printers.append(dynTPrinter);
-    try printers.append(dynHPrinter);
+    try printers.append(dynSumPrinter);
+    try printers.append(dynMultiplyPrinter);
 
     for (printers.items) |printer| {
-        printer.v.print(printer.this, "Info");
+        printer.print(4);
+        callWithFive(printer);
     }
 
-    dynamica.dumpVTable(Printer, dynTPrinter.v.*);
+    dynamica.printVTable(Printer);
+}
+
+fn callWithFive(printer: Dyn(Printer)) void {
+    printer.print(5);
 }

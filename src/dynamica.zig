@@ -1,6 +1,8 @@
 const std = @import("std");
+const Printer = @import("main.zig").Printer;
+const B = @import("main.zig").Dyn;
 
-fn CreateVTable(interface: type) type {
+pub fn CreateVTableType(interface: type) type {
     const decls = std.meta.declarations(interface);
 
     //Two extra fields: One for the runtimeTypeInfo and one for the deinit function
@@ -42,7 +44,7 @@ fn CreateVTable(interface: type) type {
     });
 }
 
-fn LinkVTable(implementation: type, vTableType: type, interface: type) vTableType {
+pub fn LinkVTable(implementation: type, vTableType: type, interface: Interface) vTableType {
     const fields = std.meta.fields(vTableType);
 
     var implVtable: vTableType = undefined;
@@ -67,7 +69,7 @@ fn LinkVTable(implementation: type, vTableType: type, interface: type) vTableTyp
     return implVtable;
 }
 
-fn isFunctionSignatureValid(vTableFnPtr: type, implFnObject: type, interface: type, implementaion: type) bool {
+fn isFunctionSignatureValid(vTableFnPtr: type, implFnObject: type, interface: Interface, implementaion: type) bool {
     const vTableFnTypeInfo = @typeInfo(std.meta.Child(vTableFnPtr));
     const paramsVTableFn = vTableFnTypeInfo.Fn.params;
     const paramsImplFn = @typeInfo(implFnObject).Fn.params;
@@ -83,25 +85,40 @@ fn isFunctionSignatureValid(vTableFnPtr: type, implFnObject: type, interface: ty
 
         if (paramVTableType != paramImplType) {
             @compileError("Function signature mismatch (ignore first param):\n  Found: " ++ @typeName(std.meta.Child(vTableFnPtr)) ++
-                " -------- in interface: " ++ @typeName(interface) ++ "\n" ++
+                " -------- in interface: " ++ @typeName(interface.interfaceType) ++ "\n" ++
                 "  Found: " ++ @typeName(implFnObject) ++ " -------- in implementaion: " ++ @typeName(implementaion));
         }
     }
     return true;
 }
 
-fn CreateDynObject(value: anytype, interface: type, vTable: anytype) Dyn(interface) {
-    return .{ .this = @ptrCast(@constCast(value)), .v = vTable };
+pub fn CreateDynObject(value: anytype, interface: Interface, vTable: anytype) Dyn(interface) {
+    return .{ .this = @ptrCast(@constCast(value)), .vTable = vTable };
 }
 
-pub fn Dyn(interface: type) type {
-    const vTableType = CreateVTable(interface);
+pub const Interface = struct {
+    interfaceFn: fn (comptime type) type,
+    interfaceType: type,
+    vTableType: type,
+};
 
+pub fn MakeInterface(interfaceFn: fn (comptime type) type) Interface {
+    return .{
+        .interfaceFn = interfaceFn,
+        .interfaceType = interfaceFn(anyopaque),
+        .vTableType = CreateVTableType(interfaceFn(anyopaque)),
+    };
+}
+
+pub fn Dyn(interface: Interface) type {
     return struct {
+        pub usingnamespace interface.interfaceFn(Dyn(interface));
+
         this: *anyopaque,
-        v: *const vTableType,
+        vTable: *const interface.vTableType,
 
         pub fn init(value: anytype) @This() {
+            const vTableType = interface.vTableType;
             const underlyingType = std.meta.Child(@TypeOf(value));
 
             const globaVTableContainer = struct {
@@ -112,9 +129,10 @@ pub fn Dyn(interface: type) type {
     };
 }
 
-pub fn implementWith(argumentTuple: anytype) noreturn {
-    _ = argumentTuple;
-    std.debug.panic("Virtual interace method panicked. Has to be implemented and not called directly", .{});
+pub fn callWith(argumentTuple: anytype) void {
+    //std.debug.panic("Virtual interace method panicked. Has to be implemented and not called directly", .{});
+    const self = argumentTuple[0];
+    std.debug.print("Val was: {}\n", .{self.val});
 }
 
 fn emptyDeinit(this: *anyopaque, allocator: std.mem.Allocator) void {
@@ -122,11 +140,11 @@ fn emptyDeinit(this: *anyopaque, allocator: std.mem.Allocator) void {
     _ = allocator;
 }
 
-pub fn dumpVTable(interface: type, vtable: CreateVTable(interface)) void {
-    std.debug.print("Printing Vtable for {s}:\n", .{@typeName(interface)});
-    const fields = std.meta.fields(@TypeOf(vtable));
+pub fn printVTable(interface: Interface) void {
+    std.debug.print("Printing Vtable for {s}:\n", .{@typeName(interface.interfaceType)});
+    const fields = std.meta.fields(interface.vTableType);
     inline for (fields) |field| {
-        std.debug.print("    Field: {s} : {s} : with size {} and offset {}\n", .{ field.name, @typeName(field.type), @sizeOf(field.type), @offsetOf(@TypeOf(vtable), field.name) });
+        std.debug.print("    Field: {s} : {s} : with size {} and offset {}\n", .{ field.name, @typeName(field.type), @sizeOf(field.type), @offsetOf(interface.vTableType, field.name) });
     }
-    std.debug.print("Total size: {}\n", .{@sizeOf(@TypeOf(vtable))});
+    std.debug.print("Total size: {}\n", .{@sizeOf(interface.vTableType)});
 }
