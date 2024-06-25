@@ -1,6 +1,5 @@
 const std = @import("std");
-const Printer = @import("main.zig").Printer;
-const B = @import("main.zig").Dyn;
+const Interface = @import("dynamica.zig").Interface;
 
 pub fn CreateVTableType(interface: type) type {
     const decls = std.meta.declarations(interface);
@@ -90,46 +89,6 @@ fn isFunctionSignatureValid(vTableFnPtr: type, implFnObject: type, interface: In
         }
     }
     return true;
-}
-
-pub fn CreateDynObject(value: anytype, interface: Interface, vTable: anytype) Dyn(interface) {
-    return .{ .this = @ptrCast(@constCast(value)), .vTable = vTable };
-}
-
-pub const Interface = struct {
-    interfaceFn: fn (comptime type) type,
-    interfaceType: type,
-    vTableType: type,
-};
-
-pub fn MakeInterface(interfaceFn: fn (comptime type) type) Interface {
-    return .{
-        .interfaceFn = interfaceFn,
-        .interfaceType = interfaceFn(anyopaque),
-        .vTableType = CreateVTableType(interfaceFn(anyopaque)),
-    };
-}
-
-pub fn Dyn(interface: Interface) type {
-    return struct {
-        pub usingnamespace interface.interfaceFn(Dyn(interface));
-
-        this: *anyopaque,
-        vTable: *const interface.vTableType,
-
-        pub fn init(value: anytype) @This() {
-            const underlyingType = std.meta.Child(@TypeOf(value));
-
-            const globaVTableContainer = struct {
-                pub const vTableImpl = LinkVTable(underlyingType, interface);
-            };
-            return CreateDynObject(value, interface, &globaVTableContainer.vTableImpl);
-        }
-    };
-}
-
-pub inline fn iCall(comptime funcName: []const u8, self: anytype, argumentTuple: anytype) void {
-    @call(.auto, @field(self.vTable.*, funcName), .{self.this} ++ .{argumentTuple[0]});
 }
 
 fn emptyDeinit(this: *anyopaque, allocator: std.mem.Allocator) void {
