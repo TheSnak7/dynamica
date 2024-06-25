@@ -2,11 +2,12 @@ const std = @import("std");
 const dynamica = @import("dynamica.zig");
 const Dyn = dynamica.Dyn;
 const MakeInterface = dynamica.MakeInterface;
+const iCall = dynamica.iCall;
 
 pub fn PrinterInterfaceFn(selfType: type) type {
     return struct {
         pub fn print(self: *const selfType, val: i32) void {
-            return self.vTable.print(self.this, val);
+            return iCall("print", .{ self, val });
         }
     };
 }

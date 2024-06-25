@@ -44,10 +44,10 @@ pub fn CreateVTableType(interface: type) type {
     });
 }
 
-pub fn LinkVTable(implementation: type, vTableType: type, interface: Interface) vTableType {
-    const fields = std.meta.fields(vTableType);
+pub fn LinkVTable(implementation: type, interface: Interface) interface.vTableType {
+    const fields = std.meta.fields(interface.vTableType);
 
-    var implVtable: vTableType = undefined;
+    var implVtable: interface.vTableType = undefined;
 
     inline for (fields) |field| {
         if (std.mem.eql(u8, field.name, "runtimeTypeInfo")) {
@@ -118,21 +118,19 @@ pub fn Dyn(interface: Interface) type {
         vTable: *const interface.vTableType,
 
         pub fn init(value: anytype) @This() {
-            const vTableType = interface.vTableType;
             const underlyingType = std.meta.Child(@TypeOf(value));
 
             const globaVTableContainer = struct {
-                pub const vTableImpl = LinkVTable(underlyingType, vTableType, interface);
+                pub const vTableImpl = LinkVTable(underlyingType, interface);
             };
             return CreateDynObject(value, interface, &globaVTableContainer.vTableImpl);
         }
     };
 }
 
-pub fn callWith(argumentTuple: anytype) void {
-    //std.debug.panic("Virtual interace method panicked. Has to be implemented and not called directly", .{});
+pub inline fn iCall(comptime funcName: []const u8, argumentTuple: anytype) void {
     const self = argumentTuple[0];
-    std.debug.print("Val was: {}\n", .{self.val});
+    @call(.auto, @field(self.vTable.*, funcName), argumentTuple);
 }
 
 fn emptyDeinit(this: *anyopaque, allocator: std.mem.Allocator) void {
