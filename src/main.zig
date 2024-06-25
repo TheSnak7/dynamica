@@ -6,8 +6,8 @@ const iCall = dynamica.iCall;
 
 pub fn PrinterInterfaceFn(selfType: type) type {
     return struct {
-        pub fn print(self: *const selfType, val: i32) void {
-            return iCall("print", self, .{val});
+        pub fn print(self: *const selfType, val: i32) i32 {
+            return iCall("print", self, .{val}, i32);
         }
     };
 }
@@ -15,15 +15,17 @@ pub const Printer = MakeInterface(PrinterInterfaceFn);
 
 const SumPrinter = struct {
     val: i32,
-    pub fn print(self: *SumPrinter, other: i32) void {
+    pub fn print(self: *SumPrinter, other: i32) i32 {
         std.debug.print("Printing from SumPrinter: {} + {} = {}\n", .{ self.val, other, self.val + other });
+        return 7;
     }
 };
 
 const MultiplyPrinter = struct {
     val: i32,
-    pub fn print(self: *MultiplyPrinter, other: i32) void {
+    pub fn print(self: *MultiplyPrinter, other: i32) i32 {
         std.debug.print("Printing from MultiplyPrinter: {} * {} = {}\n", .{ self.val, other, self.val * other });
+        return 11;
     }
 };
 
@@ -42,14 +44,17 @@ pub fn main() !void {
     try printers.append(dynSumPrinter);
     try printers.append(dynMultiplyPrinter);
 
+    var sum: i32 = 0;
     for (printers.items) |printer| {
-        printer.print(4);
+        sum += printer.print(4);
         callWithFive(printer);
     }
+
+    std.debug.print("Sum was: {}\n", .{sum});
 
     dynamica.printVTable(Printer);
 }
 
 fn callWithFive(printer: Dyn(Printer)) void {
-    printer.print(5);
+    _ = printer.print(5);
 }

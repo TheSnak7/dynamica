@@ -88,6 +88,15 @@ fn isFunctionSignatureValid(vTableFnPtr: type, implFnObject: type, interface: In
                 "  Found: " ++ @typeName(implFnObject) ++ " -------- in implementaion: " ++ @typeName(implementaion));
         }
     }
+
+    const returnValVtableFn = vTableFnTypeInfo.Fn.return_type;
+    const returnValImplFn = @typeInfo(implFnObject).Fn.return_type;
+    if (returnValVtableFn != returnValImplFn) {
+        @compileError("Function signature mismatch (ignore first param):\n  Found: " ++ @typeName(std.meta.Child(vTableFnPtr)) ++
+            " -------- in interface: " ++ @typeName(interface.interfaceType) ++ "\n" ++
+            "  Found: " ++ @typeName(implFnObject) ++ " -------- in implementaion: " ++ @typeName(implementaion));
+    }
+
     return true;
 }
 

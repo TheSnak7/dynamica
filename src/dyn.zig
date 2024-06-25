@@ -26,6 +26,7 @@ pub fn CreateDynObject(value: anytype, interface: Interface, vTable: anytype) Dy
     return .{ .this = @ptrCast(@constCast(value)), .vTable = vTable };
 }
 
-pub inline fn iCall(comptime funcName: []const u8, self: anytype, argumentTuple: anytype) void {
-    @call(.auto, @field(self.vTable.*, funcName), .{self.this} ++ argumentTuple);
+//TODO: poternitally infer the return type automatically?
+pub inline fn iCall(comptime funcName: []const u8, self: anytype, argumentTuple: anytype, returnType: type) returnType {
+    return @call(.auto, @field(self.vTable.*, funcName), .{self.this} ++ argumentTuple);
 }
