@@ -7,7 +7,7 @@ const iCall = dynamica.iCall;
 pub fn PrinterInterfaceFn(selfType: type) type {
     return struct {
         pub fn print(self: *const selfType, val: i32) void {
-            return iCall("print", .{ self, val });
+            return iCall("print", self, .{val});
         }
     };
 }
